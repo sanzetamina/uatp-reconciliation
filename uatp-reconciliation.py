@@ -26,7 +26,8 @@ df.fillna('NIL', inplace=True)
 
 # Formatting fields
 df['TRANSACTION NUMBER'] = df['TRANSACTION NUMBER'].apply('{:0>13}'.format)
-df['TRANSACTION NUMBER'] = df['TRANSACTION NUMBER'].str.replace(r'(?<=^.{3})', r'-', regex=True)
+df['TRANSACTION NUMBER'] = df['TRANSACTION NUMBER'].str.replace(
+    r'(?<=^.{3})', r'-', regex=True)
 
 # print loaded dataframe
 print("---- Imported Excel Data ----")
@@ -40,15 +41,16 @@ print(df.dtypes)
 print(" --- MODIFIED DTYPES ----")
 print(df.dtypes)
 
-# create pivot table by PNR then TICKET rows, and sort by column Total ascending
-pivot_table = pd.pivot_table(df, index = ['TRANSACTION NUMBER', 'CUSTOMER REFERENCE'], columns = 'TRANSACTION TYPE', values='BILLING VALUE', fill_value='.', aggfunc=sum, margins=True, margins_name='Total', sort=True)
-
 # create pivot table by TICKET then PNR rows, and sort by column Total ascending
-pivot_table = pd.pivot_table(df, index = ['CUSTOMER REFERENCE', 'TRANSACTION NUMBER'], columns = 'TRANSACTION TYPE', values='BILLING VALUE', fill_value='.', aggfunc=sum, margins=True, margins_name='Total', sort=True)
+pivot_table = pd.pivot_table(df, index=['TRANSACTION NUMBER', 'CUSTOMER REFERENCE'], columns='TRANSACTION TYPE',
+                             values='BILLING VALUE', fill_value='.', aggfunc=sum, margins=True, margins_name='Total', sort=True)
+
+# create pivot table by PNR then TICKET rows, and sort by column Total ascending
+# pivot_table = pd.pivot_table(df, index = ['CUSTOMER REFERENCE', 'TRANSACTION NUMBER'], columns = 'TRANSACTION TYPE', values='BILLING VALUE', fill_value='.', aggfunc=sum, margins=True, margins_name='Total', sort=True)
 
 # create pivot table by TICKET ONLY rows, and sort by column Total ascending
 # pivot_table = pd.pivot_table(df, index = ['TRANSACTION NUMBER'], columns = 'TRANSACTION TYPE', values='BILLING VALUE', fill_value='.', aggfunc=sum, margins=True, margins_name='Total', sort=True)
-#.sort_values(by=['Total'], ascending=True)
+# .sort_values(by=['Total'], ascending=True)
 
 # remove row Total from Pivot table, we keep though the Total column
 pivot_table.drop('Total', axis=0, inplace=True)
