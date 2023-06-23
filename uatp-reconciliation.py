@@ -41,16 +41,22 @@ print(df.dtypes)
 print(" --- MODIFIED DTYPES ----")
 print(df.dtypes)
 
+######################################### CHOOSE ONE THE THREE ALTERNATIVES HERE #########################################
+### ALTERNATIVE 1 ###
 # create pivot table by TICKET then PNR rows, and sort by column Total ascending
-pivot_table = pd.pivot_table(df, index=['TRANSACTION NUMBER', 'CUSTOMER REFERENCE'], columns='TRANSACTION TYPE',
+# pivot_table = pd.pivot_table(df, index=['TRANSACTION NUMBER', 'CUSTOMER REFERENCE'], columns='TRANSACTION TYPE',
+#                              values='BILLING VALUE', fill_value='.', aggfunc=sum, margins=True, margins_name='Total', sort=True)
+
+### ALTERNATIVE 2 ###
+# create pivot table by PNR then TICKET rows, and sort by column Total ascending
+pivot_table = pd.pivot_table(df, index=['CUSTOMER REFERENCE', 'TRANSACTION NUMBER'], columns='TRANSACTION TYPE',
                              values='BILLING VALUE', fill_value='.', aggfunc=sum, margins=True, margins_name='Total', sort=True)
 
-# create pivot table by PNR then TICKET rows, and sort by column Total ascending
-# pivot_table = pd.pivot_table(df, index = ['CUSTOMER REFERENCE', 'TRANSACTION NUMBER'], columns = 'TRANSACTION TYPE', values='BILLING VALUE', fill_value='.', aggfunc=sum, margins=True, margins_name='Total', sort=True)
-
+### ALTERNATIVE 3 ###
 # create pivot table by TICKET ONLY rows, and sort by column Total ascending
 # pivot_table = pd.pivot_table(df, index = ['TRANSACTION NUMBER'], columns = 'TRANSACTION TYPE', values='BILLING VALUE', fill_value='.', aggfunc=sum, margins=True, margins_name='Total', sort=True)
 # .sort_values(by=['Total'], ascending=True)
+##########################################################################################################################
 
 # remove row Total from Pivot table, we keep though the Total column
 pivot_table.drop('Total', axis=0, inplace=True)
