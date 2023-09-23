@@ -1,160 +1,118 @@
 import pandas as pd
 import glob
 
-# to be able to see the full cols/row of dataframes on the terminal
-pd.set_option("display.max_rows", None)
 
-# read all the Excel files in the directory as input, exclude any files with 'output' in their names - because those are the ones we'll be producing
-input_files = list(set(glob.glob("*.xls*")) - set(glob.glob("*utput*")))
+# read all excel files in the directory as input, excluding those with name starting with ouput
+def read_input_files():
+    input_files = [f for f in glob.glob("*.xls*") if not f.lower().startswith("output")]
+    appended_data = [pd.read_excel(f) for f in input_files]
+    df = pd.concat(appended_data)
+    return df
 
-print("---- INPUT FILES ----")
-print(input_files)
-print("---------------------")
 
-appended_data = []
-for f in input_files:
-    data = pd.read_excel(f)
-    # store DataFrame in list
-    appended_data.append(data)
-appended_data = pd.concat(appended_data)
+# formatting by:
+# filling-in existing empty cells with a 0 value
+# formatting "TRANSACTION NUMBER" (ETKTs) as "083-0000000000"
+def format_dataframe(df):
+    df.fillna("NIL", inplace=True)
+    df["TRANSACTION NUMBER"] = df["TRANSACTION NUMBER"].apply("{:0>13}".format)
+    df["TRANSACTION NUMBER"] = df["TRANSACTION NUMBER"].str.replace(
+        r"(?<=^.{3})", r"-", regex=True
+    )
+    return df
 
-# initialise a new dataframe loaded with data from files in directory
-df = pd.DataFrame(appended_data)
 
-# To prevent problems further down the line, filling-in empty cells with a 0 value
-df.fillna("NIL", inplace=True)
+# pivot table for most of the reconciliation work by matching REFUNDS to SALES
+# by PNRs then ETKTS rows, and sort by column Total ascending
+def create_pivot_table(df):
+    pivot_table = pd.pivot_table(
+        df,
+        index=["CUSTOMER REFERENCE", "TRANSACTION NUMBER"],
+        columns="TRANSACTION TYPE",
+        values="BILLING VALUE",
+        fill_value=".",
+        aggfunc=sum,
+        margins=True,
+        margins_name="Total",
+    )
+    pivot_table.drop("Total", axis=0, inplace=True)
+    return pivot_table.reset_index()
 
-# Formatting fields
-df["TRANSACTION NUMBER"] = df["TRANSACTION NUMBER"].apply("{:0>13}".format)
-df["TRANSACTION NUMBER"] = df["TRANSACTION NUMBER"].str.replace(
-    r"(?<=^.{3})", r"-", regex=True
-)
 
-# print loaded dataframe
-print("---- Imported Excel Data ----")
-print(df)
-
-# dataframe col types
-print(" --- COL DTYPES ----")
-print(df.dtypes)
-
-# dataframe col types
-print(" --- MODIFIED DTYPES ----")
-print(df.dtypes)
-
-######################################### CHOOSE ONE THE THREE ALTERNATIVES HERE #########################################
-### ALTERNATIVE 1 ###
-# create pivot table by TICKET then PNR rows, and sort by column Total ascending
-# pivot_table = pd.pivot_table(df, index=['TRANSACTION NUMBER', 'CUSTOMER REFERENCE'], columns='TRANSACTION TYPE',
-#                              values='BILLING VALUE', fill_value='.', aggfunc=sum, margins=True, margins_name='Total', sort=True)
-
-### ALTERNATIVE 2 ###
-# create pivot table by PNR then TICKET rows, and sort by column Total ascending
-pivot_table = pd.pivot_table(
-    df,
-    index=["CUSTOMER REFERENCE", "TRANSACTION NUMBER"],
-    columns="TRANSACTION TYPE",
-    values="BILLING VALUE",
-    fill_value=".",
-    aggfunc=sum,
-    margins=True,
-    margins_name="Total",
-    sort=True,
-)
-
-### ALTERNATIVE 3 ###
-# create pivot table by TICKET ONLY rows, and sort by column Total ascending
-# pivot_table = pd.pivot_table(df, index = ['TRANSACTION NUMBER'], columns = 'TRANSACTION TYPE', values='BILLING VALUE', fill_value='.', aggfunc=sum, margins=True, margins_name='Total', sort=True)
-# .sort_values(by=['Total'], ascending=True)
-##########################################################################################################################
-
-# remove row Total from Pivot table, we keep though the Total column
-pivot_table.drop("Total", axis=0, inplace=True)
-
-print("---- PIVOT ----")
-print(pivot_table)
-
-# Convert pivot_table to dataframe
-dfPivot = pivot_table.reset_index()
-
-# Sort dfPivot by Total ascending
-dfPivot.sort_values(by=["Total"], ascending=True, inplace=True)
-
-# VLOOKUP PNR
-# dfPivot['PNR']=df['CUSTOMER REFERENCE'].apply(lambda x: df['CUSTOMER REFERENCE'])
-# df.merge(dfPivot, on='CUSTOMER REFERENCE', how='left')
-
-print("----- DATAFRAME PIVOT ------")
-print(dfPivot)
-
-# split the dataframe onto two separate ones, for Settled transacitons and Outstanding ones to later place them into different Excel sheets
-dfSettledTrxs = dfPivot[dfPivot.Total == 0]
-dfOutstandingTrxs = dfPivot[dfPivot.Total != 0]
-
-print("--- SETTLED TRXS ----")
-print(dfSettledTrxs)
-
-print("--- OUTSTANDING TRXS ----")
-print(dfOutstandingTrxs)
-
-# Implement a 2nd round of re-processing, let's call it "pnr_grouped", this time taking as source the "dfOutstandingTrxs" dataframe
+# Run a 2nd round of re-processing, let's call it "pnr_grouped", this time taking as source the "dfOutstandingTrxs" dataframe
 # since there are many instances of PNRs with more than one ticket, they end up not being considered as settled (many false positives)
 # by doing this additional round, we hope we can reduce the output of outstanding trx by removingn the false positives which are actually settled (via exchanged tickets)
 # create new pivot table having dfOutstandingTrxs as input
-pnr_grouped_pivot_table = pd.pivot_table(
-    dfOutstandingTrxs,
-    index=["CUSTOMER REFERENCE"],
-    # columns=[],
-    values="Total",
-    fill_value=".",
-    aggfunc=sum,
-    margins=True,
-    margins_name="Total",
-)
+def create_grouped_pivot_table(df):
+    pivot_table = pd.pivot_table(
+        df,
+        index=["CUSTOMER REFERENCE"],
+        values="Total",
+        fill_value=".",
+        aggfunc=sum,
+        margins=True,
+        margins_name="Total",
+    )
+    return pivot_table.reset_index()
 
-# Format the "Total" column as a float with two decimal places
-# pnr_grouped_pivot_table["Total"] = pnr_grouped_pivot_table["Total"].map("{:.2f}".format)
-
-# print pnr_grouped_pivot_table:
-print("----- pnr_grouped PIVOT ------")
-print(pnr_grouped_pivot_table.round(2))
-
-# Convert pnr_grouped_pivot_table to dataframe
-dfPnrGrouped = pnr_grouped_pivot_table.reset_index()
-
-# Format the "Total" column as a float with two decimal places
-dfPnrGrouped["Total"] = dfPnrGrouped["Total"].round(2)
-
-# Sort dfPnrGrouped by Total column in ascending order
-dfPnrGrouped.sort_values(by="Total", ascending=True, inplace=True)
-
-# split the dataframe "dfPnrGrouped" onto two separate ones, for Settled PNRs and Outstanding PNRs to later place them into different Excel sheets
-dfSettledPNRs = dfPnrGrouped[dfPnrGrouped.Total == 0]
-dfOutstandingPNRs = dfPnrGrouped[dfPnrGrouped.Total != 0]
-
-# Sort dfOutstandingPNRs by Total column in ascending order
-dfOutstandingPNRs.sort_values(by="Total", ascending=True, inplace=True)
-
-# Print dfSettledPNRs:
-print("----- Settled PNRs - dfSettledPNRs ------")
-print(dfSettledPNRs)
-
-# Print dfOutstandingPNRs:
-print("----- Outstanding PNRs - dfOutstandingPNRs ------")
-print(dfOutstandingPNRs)
 
 # Write output excel
-with pd.ExcelWriter("Output.xlsx") as writer:
-    df.to_excel(writer, "UATP Source")
-    dfPivot.to_excel(writer, "Pivot")
-    dfSettledTrxs.to_excel(writer, "Settled Trxs")
-    dfOutstandingTrxs.to_excel(writer, "Outstanding Trxs")
-    dfSettledPNRs.to_excel(writer, "Settled PNRs")
-    dfOutstandingPNRs.to_excel(
-        writer, "Outstanding PNRs", index=False, float_format="%.2f"
+def write_to_excel(
+    df,
+    df_pivot,
+    df_settled_trxs,
+    df_outstanding_trxs,
+    df_settled_pnrs,
+    df_outstanding_pnrs,
+):
+    with pd.ExcelWriter("Output.xlsx") as writer:
+        df.to_excel(writer, "UATP Source")
+        df_pivot.to_excel(writer, "Pivot")
+        df_settled_trxs.to_excel(writer, "Settled Trxs")
+        df_outstanding_trxs.to_excel(writer, "Outstanding Trxs")
+        df_settled_pnrs.to_excel(writer, "Settled PNRs")
+        df_outstanding_pnrs.to_excel(
+            writer, "Outstanding PNRs", index=False, float_format="%.2f"
+        )
+
+
+def main():
+    # to be able to see the full cols/row of dataframes on the terminal
+    pd.set_option("display.max_rows", None)
+
+    try:
+        df = read_input_files()
+    except Exception as e:
+        print(f"Error reading input files: {e}")
+        return
+
+    df = format_dataframe(df)
+
+    df_pivot = create_pivot_table(df)
+    df_pivot.sort_values(by=["Total"], ascending=True, inplace=True)
+
+    df_settled_trxs = df_pivot[df_pivot.Total == 0]
+    df_outstanding_trxs = df_pivot[df_pivot.Total != 0]
+
+    df_pnr_grouped = create_grouped_pivot_table(df_outstanding_trxs).round(2)
+    df_pnr_grouped.sort_values(by="Total", ascending=True, inplace=True)
+
+    df_settled_pnrs = df_pnr_grouped[df_pnr_grouped.Total == 0]
+    df_outstanding_pnrs = df_pnr_grouped[df_pnr_grouped.Total != 0]
+    df_outstanding_pnrs = df_outstanding_pnrs.sort_values(by="Total", ascending=True)
+
+    write_to_excel(
+        df,
+        df_pivot,
+        df_settled_trxs,
+        df_outstanding_trxs,
+        df_settled_pnrs,
+        df_outstanding_pnrs,
     )
 
 
-# TODO
+if __name__ == "__main__":
+    main()
+
 # row index on 'UATP Source' doesnt match the row index on the subsequent tabs
 # ticket num. duplicates on subsequent tabs (to do with whether to group by PNR or not) - maybe do vlookup instead
