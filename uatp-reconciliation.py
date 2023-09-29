@@ -2,6 +2,7 @@ import pandas as pd
 import glob
 from datetime import datetime
 import openpyxl
+from openpyxl.styles import Font
 
 
 # read all excel files in the directory as input, excluding those with name starting with ouput
@@ -103,7 +104,7 @@ def set_freeze_panes_and_columns_width(filename):
         sheet = book[sheet_name]
 
         # Freeze the first row
-        sheet.freeze_panes = "A2"
+        sheet.freeze_panes = "A3"
 
         # Iterate over the columns and set their width
         for column in sheet.columns:
@@ -119,6 +120,32 @@ def set_freeze_panes_and_columns_width(filename):
             sheet.column_dimensions[
                 openpyxl.utils.get_column_letter(column[0].column)
             ].width = adjusted_width
+
+    book.save(filename)
+
+
+def add_titles_to_sheets(filename):
+    book = openpyxl.load_workbook(filename)
+    titles = {
+        "UATP Source": "UATP Source as per the Input file/s",
+        "Pivot": "Pivot Table to work out the Reconciliation. Matching Sales and Refunds by a combination of PNR and Ticket",
+        "Settled Trxs": "Settled Tickets. For which 'Sales - Refunds = 0'",
+        "Outstanding Trxs": "Outstanding Tickets. For which Sales and Refunds don't tally. Sorted by Total, from smallest to largest",
+        "Settled PNRs": "Settled PNRs. For which all associated Tickets' Sales and Refunds add to Zero",
+        "Outstanding PNRs": "Outstanding PNRs. For which associated tickets have outstanding amounts not tallied. Sorted by Total, from smallest to largest. 'NIL' groups all tickets with no know PNR",
+    }
+
+    for sheet_name, title in titles.items():
+        sheet = book[sheet_name]
+
+        # Insert a new row at the first position
+        sheet.insert_rows(idx=1, amount=1)
+
+        # Adding the title in the first cell of the new row
+        title_cell = sheet.cell(row=1, column=1, value=title)
+
+        # Making the title bold
+        title_cell.font = Font(bold=True)
 
     book.save(filename)
 
@@ -161,7 +188,10 @@ def main():
     )
 
     # Output formatting
+    print(f"Formatting output file...")
+    add_titles_to_sheets(output_filename)
     set_freeze_panes_and_columns_width(output_filename)
+    print(f"Done! all finished.")
 
 
 if __name__ == "__main__":
