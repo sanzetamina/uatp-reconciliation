@@ -1,12 +1,18 @@
 import pandas as pd
 import glob
 from datetime import datetime
+import openpyxl
 
 
 # read all excel files in the directory as input, excluding those with name starting with ouput
 def read_input_files():
     input_files = [f for f in glob.glob("*.xls*") if not f.lower().startswith("output")]
-    appended_data = [pd.read_excel(f) for f in input_files]
+    appended_data = []
+
+    for f in input_files:
+        print(f"Reading...... input file: {f}")
+        appended_data.append(pd.read_excel(f))
+
     df = pd.concat(appended_data)
     return df
 
@@ -75,27 +81,60 @@ def write_to_excel(
     # Use the formatted string in your filename
     filename = f"Output-{timestamp_str}.xlsx"
 
+    print(f"Creating new output file: {filename}")
+
     with pd.ExcelWriter(filename) as writer:
-        df.to_excel(writer, "UATP Source")
-        df_pivot.to_excel(writer, "Pivot")
-        df_settled_trxs.to_excel(writer, "Settled Trxs")
-        df_outstanding_trxs.to_excel(writer, "Outstanding Trxs")
-        df_settled_pnrs.to_excel(writer, "Settled PNRs")
+        df.to_excel(writer, "UATP Source", index=False)
+        df_pivot.to_excel(writer, "Pivot", index=False)
+        df_settled_trxs.to_excel(writer, "Settled Trxs", index=False)
+        df_outstanding_trxs.to_excel(writer, "Outstanding Trxs", index=False)
+        df_settled_pnrs.to_excel(writer, "Settled PNRs", index=False)
         df_outstanding_pnrs.to_excel(
             writer, "Outstanding PNRs", index=False, float_format="%.2f"
         )
+
+    return filename
+
+
+def set_freeze_panes_and_columns_width(filename):
+    book = openpyxl.load_workbook(filename)
+
+    for sheet_name in book.sheetnames:
+        sheet = book[sheet_name]
+
+        # Freeze the first row
+        sheet.freeze_panes = "A2"
+
+        # Iterate over the columns and set their width
+        for column in sheet.columns:
+            max_length = 0
+            column = [cell for cell in column]
+            for cell in column:
+                try:
+                    if len(str(cell.value)) > max_length:
+                        max_length = len(cell.value)
+                except:
+                    pass
+            adjusted_width = max_length + 2
+            sheet.column_dimensions[
+                openpyxl.utils.get_column_letter(column[0].column)
+            ].width = adjusted_width
+
+    book.save(filename)
 
 
 def main():
     # to be able to see the full cols/row of dataframes on the terminal
     pd.set_option("display.max_rows", None)
 
+    # Input
     try:
         df = read_input_files()
     except Exception as e:
         print(f"Error reading input files: {e}")
         return
 
+    # Operation
     df = format_dataframe(df)
 
     df_pivot = create_pivot_table(df)
@@ -111,7 +150,8 @@ def main():
     df_outstanding_pnrs = df_pnr_grouped[df_pnr_grouped.Total != 0]
     df_outstanding_pnrs = df_outstanding_pnrs.sort_values(by="Total", ascending=True)
 
-    write_to_excel(
+    # Output
+    output_filename = write_to_excel(
         df,
         df_pivot,
         df_settled_trxs,
@@ -120,9 +160,9 @@ def main():
         df_outstanding_pnrs,
     )
 
+    # Output formatting
+    set_freeze_panes_and_columns_width(output_filename)
+
 
 if __name__ == "__main__":
     main()
-
-# row index on 'UATP Source' doesnt match the row index on the subsequent tabs
-# ticket num. duplicates on subsequent tabs (to do with whether to group by PNR or not) - maybe do vlookup instead
