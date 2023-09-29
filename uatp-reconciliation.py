@@ -1,5 +1,6 @@
 import pandas as pd
 import glob
+from datetime import datetime
 
 
 # read all excel files in the directory as input, excluding those with name starting with ouput
@@ -65,7 +66,16 @@ def write_to_excel(
     df_settled_pnrs,
     df_outstanding_pnrs,
 ):
-    with pd.ExcelWriter("Output.xlsx") as writer:
+    # Get the current date and time
+    now = datetime.now()
+
+    # Format the date and time as a string "yyyymmdd-hhmm"
+    timestamp_str = now.strftime("%Y%m%d-%H%M")
+
+    # Use the formatted string in your filename
+    filename = f"Output-{timestamp_str}.xlsx"
+
+    with pd.ExcelWriter(filename) as writer:
         df.to_excel(writer, "UATP Source")
         df_pivot.to_excel(writer, "Pivot")
         df_settled_trxs.to_excel(writer, "Settled Trxs")
