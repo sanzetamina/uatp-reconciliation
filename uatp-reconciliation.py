@@ -3,11 +3,12 @@ import glob
 from datetime import datetime
 import openpyxl
 from openpyxl.styles import Font
+from openpyxl.comments import Comment
 
 
-# read all excel files in the directory as input, excluding those with name starting with ouput
+# read all excel files in the directory as input, excluding those with name containing 'ouput'
 def read_input_files():
-    input_files = [f for f in glob.glob("*.xls*") if not f.lower().startswith("output")]
+    input_files = [f for f in glob.glob("*.xls*") if "output" not in f.lower()]
     appended_data = []
 
     for f in input_files:
@@ -94,6 +95,16 @@ def write_to_excel(
             writer, "Outstanding PNRs", index=False, float_format="%.2f"
         )
 
+    # Load the workbook and iterate over sheets to rename the 'Total' column
+    book = openpyxl.load_workbook(filename)
+    for sheetname in book.sheetnames:
+        sheet = book[sheetname]
+        for i, cell in enumerate(sheet[1], start=1):  # header in second row
+            if cell.value == "Total":
+                cell.value = "AU$ Total"
+                break  # exit the loop once the cell is found and modified
+    book.save(filename)
+
     return filename
 
 
@@ -109,7 +120,9 @@ def set_freeze_panes_and_columns_width(filename):
         # Iterate over the columns and set their width
         for column in sheet.columns:
             max_length = 0
-            column = [cell for cell in column]
+            column = [
+                cell for cell in column if cell.row > 1
+            ]  # Skip the first row where title will be inserted, so the column doesn't get too wide
             for cell in column:
                 try:
                     if len(str(cell.value)) > max_length:
@@ -144,8 +157,26 @@ def add_titles_to_sheets(filename):
         # Adding the title in the first cell of the new row
         title_cell = sheet.cell(row=1, column=1, value=title)
 
-        # Making the title bold
-        title_cell.font = Font(bold=True)
+        # Setting the font style of the title to bold, italic, and larger size.
+        title_cell.font = Font(bold=True, italic=True, size=14)
+
+    book.save(filename)
+
+
+def add_note_to_outstanding_pnrs_sheet(filename):
+    book = openpyxl.load_workbook(filename)
+
+    sheet = book["Outstanding PNRs"]
+
+    # Adding a note to be placed next to the total row at the bottom of this worksheet
+    row = sheet.max_row
+    column = 3  # note needs to be placed in column C
+
+    # Create a comment
+    note = "<-- This Total should be the same as the sum of 'BILLING VALUE' column in 'UATP Source' to confirm everything went well. Please check!"
+
+    # Place the note in the cell
+    sheet.cell(row=row, column=column, value=note).font = Font(bold=True)
 
     book.save(filename)
 
@@ -191,6 +222,7 @@ def main():
     print(f"Formatting output file...")
     add_titles_to_sheets(output_filename)
     set_freeze_panes_and_columns_width(output_filename)
+    add_note_to_outstanding_pnrs_sheet(output_filename)
     print(f"Done! all finished.")
 
 
