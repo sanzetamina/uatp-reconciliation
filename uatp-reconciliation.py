@@ -195,7 +195,14 @@ def main():
     # Operation
     df = format_dataframe(df)
 
+    # sometimes input files may have CR_NOTE and DB_NOTE as TRANSACTION TYPE, which we won't handle
+    # instead, we'll just remove them from the dataframe before proceeding
+    df = df[df["TRANSACTION TYPE"].isin(["SALES", "REFUND"])]
+
     df_pivot = create_pivot_table(df)
+    print("--- Pivot Table ---")
+    print(df_pivot)
+
     df_pivot.sort_values(by=["Total"], ascending=True, inplace=True)
 
     df_settled_trxs = df_pivot[df_pivot.Total == 0]
@@ -224,6 +231,9 @@ def main():
     set_freeze_panes_and_columns_width(output_filename)
     add_note_to_outstanding_pnrs_sheet(output_filename)
     print(f"Done! all finished.")
+    # await for key stroke to exit
+    input("Press any key to exit...")
+    return
 
 
 if __name__ == "__main__":
