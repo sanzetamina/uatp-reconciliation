@@ -200,9 +200,6 @@ def main():
     df = df[df["TRANSACTION TYPE"].isin(["SALES", "REFUND"])]
 
     df_pivot = create_pivot_table(df)
-    print("--- Pivot Table ---")
-    print(df_pivot)
-
     df_pivot.sort_values(by=["Total"], ascending=True, inplace=True)
 
     df_settled_trxs = df_pivot[df_pivot.Total == 0]
